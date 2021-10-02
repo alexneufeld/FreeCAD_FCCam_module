@@ -105,6 +105,19 @@ def displacement(data):
     return (x_total, y_total)
 
 
+def displacement_at(ang, data):
+    split_angle = 0
+    start_lift = 0
+    for (ftype, end_angle, lift) in data:
+        motion_f = function_map[ftype]
+        if split_angle <= ang and ang <= end_angle:
+            S = motion_f(end_angle-split_angle, lift, ang-split_angle)
+            S += start_lift
+        split_angle = end_angle
+        start_lift += lift
+    return S
+
+
 def run_example():
     x, y = displacement(test)
     plt.plot(x, y, "-r")
@@ -126,9 +139,9 @@ def run_example():
     plt.show()
 
 
-def getShapeOfCam(data):
+def getShapeOfCam(data, r_b):
     x, y = displacement(data)
-    r_c, A = roller_translating_cam(6, 1, x, y, 0.5)
+    r_c, A = knife_edge_translating_cam(r_b, x, y, 0)
     x_array, y_array = polar2xy(r_c, A/360*2*π)
     # loop first point back to end
     x_array = np.insert(x_array, [len(x_array)], [x_array[0]])
@@ -143,17 +156,30 @@ def getShapeOfCam(data):
 class AxialCamObj:
     def __init__(self, obj):
         obj.addProperty("App::PropertyPythonObject", "Data")
+        obj.addProperty("App::PropertyAngle", "ReferenceAngle")
+        obj.addProperty("App::PropertyLength", "ReferenceDisplacement")
+        obj.addProperty("App::PropertyLength", "BaseCircleRadius")
+        obj.BaseCircleRadius = FreeCAD.Units.Quantity("6 mm")
         obj.Data = test
-        obj.Shape = getShapeOfCam(obj.Data)
-        #obj.Proxy = self
+        obj.Shape = getShapeOfCam(obj.Data, float(
+            obj.BaseCircleRadius.getValueAs('mm')))
+        S = displacement_at(
+            float(obj.ReferenceAngle.getValueAs('deg')), obj.Data)
+        obj.ReferenceDisplacement = FreeCAD.Units.Quantity(str(S) + " mm")
+        obj.Proxy = self
 
     def onChanged(self, obj, prop):
-        print("onchanged")
+        if prop == "ReferenceAngle":
+            S = displacement_at(
+                float(obj.ReferenceAngle.getValueAs('deg')), obj.Data)
+            obj.ReferenceDisplacement = FreeCAD.Units.Quantity(str(S) + " mm")
+        if prop == "BaseCircleRadius" or prop == "Data":
+            obj.Shape = getShapeOfCam(obj.Data, float(
+                obj.BaseCircleRadius.getValueAs('mm')))
         pass
 
     def execute(self, obj):
-        print("execute")
-
+        pass
 
 class ViewProviderAxialCam:
     def __init__(self, vobj):
@@ -166,15 +192,23 @@ class ViewProviderAxialCam:
         return os.path.join(ICONPATH, "camIcon.svg")
 
 
-def addAxialCamCmd():
-    doc = FreeCAD.ActiveDocument
-    obj = doc.addObject("Part::Part2DObjectPython", "Cam")
-    view = Gui.ActiveDocument.ActiveView
-    activeBody = view.getActiveObject('pdbody')
-    activeBody.addObject(obj)
-    AxialCamObj(obj)
-    ViewProviderAxialCam(obj.ViewObject)
+class addAxialCamCmd():
+    def __init__(self):
+        pass
 
+    def GetResources(self):
+        return {'Pixmap': os.path.join(ICONPATH,"camIcon.svg"),
+                'MenuText': "Add Axial Cam",
+                'ToolTip': "Add Axial Cam"}
 
-if __name__ == "__main__":
-    addAxialCamCmd()
+    def Activated(self):
+        doc = FreeCAD.ActiveDocument
+        obj = doc.addObject("Part::Part2DObjectPython", "Cam")
+        view = Gui.ActiveDocument.ActiveView
+        activeBody = view.getActiveObject('pdbody')
+        activeBody.addObject(obj)
+        AxialCamObj(obj)
+        ViewProviderAxialCam(obj.ViewObject)
+
+    def IsActive(self):
+        return True

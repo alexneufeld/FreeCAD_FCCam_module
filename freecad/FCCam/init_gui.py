@@ -5,7 +5,7 @@ from freecad.FCCam import ICONPATH
 
 
 class FCCamWorkbench(Gui.Workbench):
-    MenuText = "FCCam workbench"
+    MenuText = "FCCam"
     ToolTip = "add mechanical cam shapes"
     Icon = os.path.join(ICONPATH, "camIcon.svg")
     toolbox = []
@@ -14,7 +14,12 @@ class FCCamWorkbench(Gui.Workbench):
         return "Gui::PythonWorkbench"
 
     def Initialize(self):
-        pas
+        from .FCCamTools import addAxialCamCmd
+        Gui.addCommand("addAxialCamCmd", addAxialCamCmd())
+        self.toolbox = ["addAxialCamCmd"]
+        self.appendToolbar("CamWB", self.toolbox)
+        self.appendMenu("CamWB", self.toolbox)
+        pass
 
     def Activated(self):
         '''
